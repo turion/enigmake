@@ -4,7 +4,7 @@
 """enigmake
 Dependency resolution
 """
-
+# Ignore this class for now
 class Param(object): # There must be some better way
 	def __init__(self):
 		object.__setattr__(self, "_deps", {})
@@ -39,10 +39,12 @@ class Target(object):
 		while self.dirty:
 			print "Dirty"
 			for target in self.dependencies:
-				target() # Actually not necessary if the user worked flawlessly, because his calc_data will call target.data or target would not be needed as dependency.
+				target() # Actually not necessary if the user worked flawlessly, because his calc_data will call target() or target would not be needed as dependency.
 			self.data = self.calc_data()
 			self._dirty = False
 		return self.data
+
+#Tests here
 
 def calc_data1():
 	return 3

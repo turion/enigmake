@@ -18,8 +18,8 @@ class Param(object): # There must be some better way
 	def __setattr__(self, name, value):
 		self._deps[name] = value
 
-#FIXME: Modification times have to be taken into account
-class Target(object): # DOCME
+import time
+class Target(object):
 	"""Encapsulates a piece of data calculated with other data. By declaring dependencies on the other data, a target automatically knows if it has to recalculate its data if a dependency changes its data.
 	Call the object to retrieve its data or enforce its calculation (for example as an idle task).
 	Parameters: calc_data is a function that takes no parameters and produces the actual data.
@@ -29,46 +29,42 @@ class Target(object): # DOCME
 		if not dependencies:
 			dependencies = []
 		self.dependencies = dependencies			
-		self._dirty = True
 		self.calc_data = calc_data
 		self.hold = False # This prevents the data being recalculated, even it the target is dirty.
+		self.touch()
 		if calc_now:
 			self()
-	@property
+		self.first_time_dirty = True
 	def dirty(self):
-		return self._dirty or self.dep_dirty()
-	def dep_dirty(self):
 		"""Can be subclassed for more intelligent and efficient lookups, for example looking up first if calc_data returns a different value than the one stored, and only then return True."""
-		return reduce(lambda x, y: x or y, [target.dirty for target in self.dependencies], False)
-	@dirty.setter
-	def dirty(self, value):
-		"""A possibility to set the dirty flag manually if e.g. some parameter or external influence changed the output of calc_data."""
-		self._dirty = value
+		return reduce(lambda x, y: x or y, [target.last_mod > self.last_mod for target in self.dependencies], False) or self.first_time_dirty
+	def touch(self):
+		self.last_mod = time.time()
 	def __call__(self):
-		print "Accessing", self, "data"
 		if not self.hold:
-			while self.dirty:
-				print "Dirty"
-				#~ for target in self.dependencies:
-					#~ target() # Actually not necessary if the user worked flawlessly, because his calc_data will call target() or target would not be needed as dependency. If these calculations take to long, this could even be harmful, since the dependencies could get dirty in the meantime.
+			while self.dirty():
+				for target in self.dependencies:
+					target() # Actually not necessary if the user worked flawlessly, because his calc_data will call target() or target would not be needed as dependency. If one of the calculations take to long, this could even harm calculation time, since the other dependencies could get dirty in the meantime and more calculations are made in total than needed. But if the user did put a dependency into dependencies which is not called by calc_data, it will remain dirty forever, causing the loop to be infinite. This is why I leave this. Alternatively, I could run the loop only once.
 				self.data = self.calc_data()
-				self._dirty = False
+				self.touch()
+				self.first_time_dirty = False # A bit UGLY
 			return self.data
 
-#Tests here
+if __name__ == "__main__":
+	#Tests here
 
-def calc_data1():
-	return 3
+	def calc_data1():
+		return 3
 
-target1 = Target(calc_data1)
+	target1 = Target(calc_data1)
 
 
-def calc_data2():
-	return target1()**4
+	def calc_data2():
+		return target1()**4
 
-target2 = Target(calc_data2, [target1])
+	target2 = Target(calc_data2, [target1])
 
-print target1()
-print target2()
-target1._dirty = True
-print target2()
+	print target1()
+	print target2()
+	target1._dirty = True
+	print target2()

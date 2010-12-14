@@ -62,9 +62,26 @@ class FileTarget(enigmake.Target):
 			except IOError: # File didn't exist or was corrupted.
 				self.first_time_dirty = True # Will be recalculated and rewritten in subsequent __call__.
 		return enigmake.Target.__call__(self)
-		
 
-class PickleFileTarget(FileTarget):
+#TESTME
+class SimpleFileTarget(FileTarget):
+	"""Convenient, if the file reading and writing can be implemented in one block."""
+	def __init__(self, calc_data, dependencies, filename, dump_filehandler_method, load_filehandler_method, **kwargs):
+		def dump_file_method(data):
+			with open(filename, "w") as filehandle:
+				dump_filehandler_method(filehandle, data)
+		def load_file_method():
+			with open(filename) as filehandle:
+				return load_filehandler_method(filehandle)
+		FileTarget.__init__(self, calc_data, dependencies, filename, dump_file_method, load_file_method, **kwargs)
+
+#TESTME
+class LinesFileTarget(SimpleFileTarget):
+	"""The data is a list containing all the lines of the file. This is a short example for SimpleFileTarget."""
+	def __init__(self, calc_data, dependencies, filename, **kwargs):
+		SimpleFileTarget.__init__(self, calc_data, dependencies, filename, lambda filehandle, data: filehandle.writelines(data), lambda filehandle: filehandle.readlines(), **kwargs)
+
+class PickleFileTarget(FileTarget): # Could be implemented with help of SimpleFileTarget also.
 	"""A convenient choice that works out of the box with all pickable data formats."""
 	def __init__(self, calc_data, dependencies, filename, **kwargs):
 		FileTarget.__init__(self, calc_data, dependencies, filename, pickle_dump_file_method(filename), pickle_load_file_method(filename), **kwargs)

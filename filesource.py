@@ -7,7 +7,7 @@ Intelligent read-only file as a dependency"""
 import files, enigmake
 
 
-class FileSource(object):
+class FileSource(object): # Vielleicht doch als Klasse mit Target in Verbindung bringen? Mit gemeinsamer Überklasse?
 	"""Keeps track of the time of last modification of a given file and allocates its contents in the attribute data. The file can be modified during runtime, and the FileSource will correctly assign the modified time.
 	This is not an enigmake.Target since it has no writing access and the data is merely loaded from the given file. But a FileSource can be used as a dependency for an enigmake.Target since it has the same syntax regarding data, dirty and __call__."""
 	def __init__(self, filename, load_file_method, load_now=False):

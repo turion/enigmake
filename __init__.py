@@ -4,6 +4,10 @@
 """enigmake
 Dependency resolution
 """
+
+import time, operator, numbers
+
+
 # Ignore this class for now
 class Param(object): # There must be some better way
 	def __init__(self):
@@ -18,7 +22,7 @@ class Param(object): # There must be some better way
 	def __setattr__(self, name, value):
 		self._deps[name] = value
 
-import time
+
 class Target(object):
 	"""Encapsulates a piece of data calculated with other data. By declaring dependencies on the other data, a target automatically knows if it has to recalculate its data if a dependency changes its data.
 	Call the object to retrieve its data or enforce its calculation (for example as an idle task).
@@ -37,7 +41,8 @@ class Target(object):
 		self.first_time_dirty = True
 	def dirty(self):
 		"""Can be subclassed for more intelligent and efficient lookups, for example looking up first if calc_data returns a different value than the one stored, and only then return True."""
-		return reduce(lambda x, y: x or y, [target.last_mod > self.last_mod for target in self.dependencies], False) or self.first_time_dirty
+		return reduce(operator.or_, [target.last_mod > self.last_mod for target in self.dependencies], False) or self.first_time_dirty
+ 		#return reduce(lambda x, y: x or y, [target.last_mod > self.last_mod for target in self.dependencies], False) or self.first_time_dirty
 	def touch(self):
 		self.last_mod = time.time()
 	def __call__(self):
@@ -50,14 +55,38 @@ class Target(object):
 				self.first_time_dirty = False # A bit UGLY
 			return self.data
 
+#TESTME the next 22 lines
+def op_to_intelligent_op(op):
+	def intelligent_op(self, operand):
+		operand_type = type(operand)
+		if issubclass(operand_type, Target):
+			def temp_calc():
+				return op(self(), operand())
+			dependencies = [self, operand]
+		elif issubclass(operand_type, numbers.Number):
+			def temp_calc():
+				return op(self(), operand)
+			dependencies = [self]
+		else:
+			return NotImplemented
+		result = Target(temp_calc, dependencies) # temp_calc has been defined in one of the first ifs
+		return result
+	return intelligent_op
+
+wanted = ["__add__", "__mul__", "__sub__", "__div__", "__pow__"] # Operators supported for Target
+for opname in wanted:
+	if opname in dir(operator):
+		type.__setattr__(Target, opname, op_to_intelligent_op(operator.__getattribute__(opname)))
+		type.__setattr__(Target, "__r" + opname[2:], op_to_intelligent_op(operator.__getattribute__(opname)))
+	
+
 if __name__ == "__main__":
 	#Tests here
-
+	
 	def calc_data1():
 		return 3
 
 	target1 = Target(calc_data1)
-
 
 	def calc_data2():
 		return target1()**4
@@ -66,5 +95,8 @@ if __name__ == "__main__":
 
 	print target1()
 	print target2()
-	target1._dirty = True
-	print target2()
+	target3 = target1 + target2
+	print target3(), target1 in target3.dependencies, target2 in target3.dependencies
+	answer = target3/2
+	print answer()
+	

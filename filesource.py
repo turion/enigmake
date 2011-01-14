@@ -6,6 +6,9 @@ Intelligent read-only file as a dependency"""
 
 import files, enigmake
 
+class FileNotAvailableError(IOError, NotAvailableError):
+	"""Is raised by FileSource if the load_file_method or time_of_last_modification raises an IOError. It subclasses IOError such that scopes unaware of there being a FileSource can still catch the exception."""
+
 
 class FileSource(object): # Vielleicht doch als Klasse mit Target in Verbindung bringen? Mit gemeinsamer Überklasse?
 	"""Keeps track of the time of last modification of a given file and allocates its contents in the attribute data. The file can be modified during runtime, and the FileSource will correctly assign the modified time.
@@ -17,11 +20,17 @@ class FileSource(object): # Vielleicht doch als Klasse mit Target in Verbindung 
 		if load_now:
 			self()
 	def dirty(self):
-		self.new_mod = files.time_of_last_modification(self.filename)
+		try:
+			self.new_mod = files.time_of_last_modification(self.filename)
+		except IOError as ioerror:
+			raise FileNotAvailableError(ioerror)
 		return self.new_mod > self.last_mod
 	def __call__(self):
 		if self.dirty():
-			self.data = self.load_file_method()
+			try:
+				self.data = self.load_file_method()
+			except IOError as ioerror:
+				raise FileNotAvailableError(ioerror)
 			self.last_mod = self.new_mod # In case load_file_method raises an error, last_time stays unchanged and the source is still dirty.
 		return self.data # Raises AttributeError only if last_time is messed up before calling the source the first time, e.g. on a file older than the unix epoch.
 
@@ -48,3 +57,9 @@ if __name__ == "__main__":
 		print "Type some letter to quit."
 		if raw_input():
 			break
+
+#class ExecutableFileSource(FileSource):
+#	"""A class, that executes the given file as a python script and contains its standard output as data. This behaviour is very useful when the calculating code is changed often."""
+"""Alternativen für aktualisierbaren Code:
+	Benutzt ein FileTarget um die Funktion darin zu speichern. (Zukunftsträchtig)
+"""

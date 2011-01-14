@@ -28,23 +28,20 @@ def pickle_load_file_method(filename):
 
 class FileTarget(enigmake.Target):
 	"""Makes the data persistent by automatically storing it in a file on assignment.
-	calc_data is still the way to calculate the data, but before calculating it, an attempt is made to load the data with load_file_method, if calc_now, load_now are the default False, True. So the file is not only used for persistence, but also for caching across several program runs.
+	calc_data is still the way to calculate the data, but before calculating it, an attempt is made to load the data with load_file_method, if calc_now, load_now have the default values False, True. So the file is not only used for persistence, but also for caching across several program runs.
 	You can also use FileTarget to store the output of the dependent calculations in the format of choice, just specify the corresponding dump_file_method."""
 	def __init__(self, calc_data, dependencies, filename, dump_file_method, load_file_method, load_now=True, **kwargs):
 		self.dump_file_method = dump_file_method
 		self.load_file_method = load_file_method
+		enigmake.Target.__init__(self, calc_data, dependencies, **kwargs)
 		if load_now:
 			try:
-				self._data = self.load_file_method() # Calls self.load_file_method()
-				self.last_mod = time_of_last_modification(filename) # The file was opened correctly, no need to recalculate if none of the dependencies is dirty
-			except: # self.load_file_method raised some error because e.g. the file didn't exist
+				self._data = self.load_file_method()
+			except IOError: # self.load_file_method raised some error because e.g. the file didn't exist
 				pass
-		enigmake.Target.__init__(self, calc_data, dependencies, **kwargs)
-		try: # UGLY
-			self.last_mod
-			self.first_time_dirty = False
-		except AttributeError:
-			pass
+			else: # The file was opened correctly, no need to recalculate if none of the dependencies is dirty
+				self.last_mod = time_of_last_modification(filename)
+				self.first_time_dirty = False
 	@property
 	def data(self):
 		"""Do del FileTarget._data to enforce reloading."""
@@ -86,7 +83,7 @@ class PickleFileTarget(FileTarget): # Could be implemented with help of SimpleFi
 	def __init__(self, calc_data, dependencies, filename, **kwargs):
 		FileTarget.__init__(self, calc_data, dependencies, filename, pickle_dump_file_method(filename), pickle_load_file_method(filename), **kwargs)
 
-class MultithreadingFileTarget(FileTarget):
+class MultithreadingFileTarget(FileTarget): #TESTME (join)
 	"""In case the writing procedure takes a long time, it is convenient to do the writing in another thread, so calculations and everything else can go on."""
 	def __init__(self, calc_data, dependencies, dump_file_method, *args, **kwargs):
 		import threading
@@ -105,3 +102,22 @@ class MultithreadingFileTarget(FileTarget):
 #class MultithreadingPickleFileTarget
 #	I will write this as soon as I understand super classes
 
+#BEAUTIFYME? join with FileTarget and Parameter somehow.
+class PickleRuntimeConstant(enigmake.PreTarget):
+	"""Similar to a parameter, but init_constant_data must be immutable and the data contained cannot change at runtime. It may change, however, from one run of the program to the next. It is pickled internally and compared to the last value, thus allowing to estimate the modification time and being considered as dirty automatically. For comparison, the == operator must be implemented, and it must be pickleable."""
+	def __init__(self, init_constant_data, filename):
+		try:
+			stored_data = pickle_load_file_method(filename)()
+		except IOError: # File is corrupt or doesn't exist
+			pass
+		try:
+			assert stored_data == init_constant_data # Needs == to be implemented!
+		except (AssertionError, NameError): # They were unequal or stored_data wasn't loaded
+			pickle_dump_file_method(filename)(init_constant_data)
+		self.last_mod = time_of_last_modification(filename)
+		self.data = init_constant_data
+	def __call__(self):
+		return self.data
+
+# IMPLEMENTME Something for long, stepwise calculation that is slightly KeyboardInterrupt safe: try finally, or subclass Shelf
+# IMPLEMENTME Picklify returns some FileTarget subclass in pickled version
